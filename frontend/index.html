@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISL Sign Language Recognition</title>
+    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121212">
+
+    <!-- MediaPipe Hands & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>ISL Gesture Translator</h1>
+        <p style="margin-bottom: 20px; opacity: 0.8;">Click below to start the camera and begin recognition.</p>
+
+        <div id="action-buttons" style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button id="start-btn" style="
+                background: #4CAF50; 
+                color: white; 
+                border: none; 
+                padding: 15px 40px; 
+                border-radius: 30px; 
+                font-size: 18px; 
+                font-weight: 600; 
+                cursor: pointer; 
+                box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+                transition: transform 0.2s;
+            " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                Start Camera & AI
+            </button>
+
+            <button id="record-gesture-btn" class="secondary-btn" style="display: none;">
+                ➕ Add Custom Gesture
+            </button>
+
+            <button id="mute-btn" class="secondary-btn" style="display: none;">
+                <span id="mute-icon">🔊</span> Unmuted
+            </button>
+        </div>
+
+        <div class="video-container">
+            <!-- Recording Overlay -->
+            <div id="recording-overlay" style="display: none;">
+                <div id="recording-status">
+                    <div id="recording-timer">3</div>
+                    <div id="recording-msg">Prepare to record...</div>
+                    <div id="recording-progress-bar">
+                        <div id="recording-progress"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Debugging: showing small video in corner -->
+            <video class="input_video" autoplay playsinline
+                style="position:absolute; top:10px; right:10px; width:120px; height:90px; border:2px solid #fff; z-index:100; border-radius:8px;"></video>
+            <canvas class="output_canvas"></canvas>
+            <div id="prediction-box">
+                <span id="prediction-text">Ready to Translate</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=2"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.error("SW failed:", err));
+            });
+        }
+    </script>
+</body>
+
+</html>

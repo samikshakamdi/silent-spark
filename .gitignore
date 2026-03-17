@@ -1,23 +1,10 @@
-# Python virtual environment
-venv/
-env/
-
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# ML models/datasets
 *.pkl
 *.h5
-*.joblib
-model/
+__pycache__/
+.venv/
+gesture_svm_model.pkl
 data/
-
-# Environment variables
-.env
-
-# IDE
-.vscode/settings.json
-.idea/
+*.csv
+*.png
+*.webp
+temp_backup/
