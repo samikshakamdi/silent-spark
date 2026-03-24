@@ -1,7 +1,7 @@
 import os
 import joblib
 import numpy as np
-from fastapi import FastAPI, HTTPException, Depends, Security, Request
+from fastapi import FastAPI, HTTPException, Depends, Security, Request, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +11,11 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import threading
+
+# --- GLOBAL STATE ---
+training_lock = threading.Lock()
+is_training = False
 
 # --- CONFIGURATION ---
 SECRET_KEY = os.environ.get("SECRET_KEY", "your-secret-key-keep-it-safe") # Use environment variable in production
@@ -204,71 +209,75 @@ async def predict(request: LandmarkRequest, current_user: str = Depends(get_curr
 
 # --- TRAINING UTILS ---
 def run_training():
-    global model
-    import pandas as pd
-    from sklearn.model_selection import train_test_split
-    from sklearn.svm import SVC
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.pipeline import Pipeline
-
-    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "hand_landmarks.csv")
-    if not os.path.exists(csv_path):
-        print(f"❌ CSV not found at {csv_path}")
+    global model, is_training
+    
+    # Ensure only one training runs at a time
+    if training_lock.locked():
+        print("⚠️ Training already in progress, skipping...")
         return False
-
-    try:
-        import traceback
-        data = pd.read_csv(csv_path, low_memory=False)
         
-        # Clean data
-        data['label'] = data['label'].astype(str) # Force label to string
-        
-        # Drop rows with NaN if any
-        if data.isnull().values.any():
-            print(f"⚠️ Dropping rows with missing values...")
-            data = data.dropna()
+    with training_lock:
+        is_training = True
+        try:
+            import pandas as pd
+            from sklearn.model_selection import train_test_split
+            from sklearn.svm import SVC
+            from sklearn.preprocessing import StandardScaler
+            from sklearn.pipeline import Pipeline
 
-        X = data.drop("label", axis=1)
-        y = data["label"]
+            csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "hand_landmarks.csv")
+            if not os.path.exists(csv_path):
+                print(f"❌ CSV not found at {csv_path}")
+                return False
 
-        # Ensure all columns in X are numeric
-        X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
+            data = pd.read_csv(csv_path, low_memory=False)
+            
+            # Clean data
+            data['label'] = data['label'].astype(str)
+            if data.isnull().values.any():
+                data = data.dropna()
 
-        # Train-test split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
+            X = data.drop("label", axis=1)
+            y = data["label"]
+            X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
 
-        # Pipeline: Scaling + SVM
-        new_model = Pipeline([
-            ("scaler", StandardScaler()),
-            ("svm", SVC(
-                kernel="rbf",
-                C=10,
-                gamma="scale",
-                probability=True
-            ))
-        ])
+            # Train-test split
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42, stratify=y
+            )
 
-        # Train
-        new_model.fit(X_train, y_train)
-        
-        # Save model
-        joblib.dump(new_model, MODEL_PATH)
-        
-        # Reload global model
-        model = new_model
-        print(f"✅ Model re-trained and saved to {MODEL_PATH}")
-        return True
-    except Exception as e:
-        print(f"❌ Training error: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+            # Pipeline: Scaling + SVM
+            new_model = Pipeline([
+                ("scaler", StandardScaler()),
+                ("svm", SVC(
+                    kernel="rbf",
+                    C=10,
+                    gamma="scale",
+                    probability=True
+                ))
+            ])
+
+            # Train
+            new_model.fit(X_train, y_train)
+            
+            # Save model
+            joblib.dump(new_model, MODEL_PATH)
+            
+            # Reload global model
+            model = new_model
+            print(f"✅ Model re-trained and saved to {MODEL_PATH}")
+            return True
+        except Exception as e:
+            print(f"❌ Training error: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+        finally:
+            is_training = False
 
 # --- NEW ENDPOINTS ---
 @app.post("/upload-gesture")
-async def upload_gesture(request: GestureRequest, current_user: str = Depends(get_current_user)):
+async def upload_gesture(request: GestureRequest, background_tasks: BackgroundTasks, current_user: str = Depends(get_current_user)):
     csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "hand_landmarks.csv")
     
     try:
@@ -284,20 +293,26 @@ async def upload_gesture(request: GestureRequest, current_user: str = Depends(ge
                 # Append row: landmarks..., label
                 writer.writerow(features + [request.gesture_name])
         
-        return {"message": f"Successfully uploaded {len(request.landmarks)} frames for gesture '{request.gesture_name}'"}
+        # Trigger re-training in background
+        background_tasks.add_task(run_training)
+        
+        return {"message": f"Successfully uploaded {len(request.landmarks)} frames for gesture '{request.gesture_name}'. Model re-training started in background."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/train")
-async def train_model(current_user: str = Depends(get_current_user)):
-    success = run_training()
-    if success:
-        return {"message": "Model re-trained successfully"}
-    else:
-        raise HTTPException(status_code=500, detail="Model training failed")
+async def train_model(background_tasks: BackgroundTasks, current_user: str = Depends(get_current_user)):
+    if is_training:
+        return {"message": "Training already in progress"}
+    background_tasks.add_task(run_training)
+    return {"message": "Model re-training started in background"}
+
+@app.get("/training-status")
+async def training_status():
+    return {"is_training": is_training}
 
 @app.delete("/delete-gesture/{name}")
-async def delete_gesture(name: str, current_user: str = Depends(get_current_user)):
+async def delete_gesture(name: str, background_tasks: BackgroundTasks, current_user: str = Depends(get_current_user)):
     csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "hand_landmarks.csv")
     
     try:
@@ -325,13 +340,12 @@ async def delete_gesture(name: str, current_user: str = Depends(get_current_user
         data.to_csv(csv_path, index=False)
         print(f"🗑️ Deleted {deleted_count} rows for gesture '{name}'")
         
-        # Trigger re-training
-        success = run_training()
+        # Trigger re-training in background
+        background_tasks.add_task(run_training)
         
         return {
-            "message": f"Successfully deleted gesture '{name}' and re-trained model",
-            "rows_removed": deleted_count,
-            "training_success": success
+            "message": f"Successfully deleted gesture '{name}'. Model re-training started in background.",
+            "rows_removed": deleted_count
         }
     except HTTPException:
         raise

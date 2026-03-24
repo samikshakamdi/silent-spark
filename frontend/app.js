@@ -320,9 +320,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     request.onerror = () => reject(request.error);
                 });
                 
-                alert(`Gesture "${name}" deleted and model re-trained!`);
+                alert(`Gesture "${name}" deleted! Model re-training started in background.`);
                 renderGesturesList(); // Refresh list
                 refreshCustomGestures(); // Refresh cache
+                checkTrainingStatus(); // Start polling
             } else {
                 const err = await response.json();
                 alert("Deletion failed: " + (err.detail || "Unknown error"));
@@ -387,21 +388,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                 });
 
-                if (!uploadResponse.ok) throw new Error("Upload failed");
-
-                predictionText.textContent = "Server training in progress... Please wait.";
-                const trainResponse = await fetch("/train", {
-                    method: "POST",
-                    headers: { 
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
-
-                if (trainResponse.ok) {
-                    alert(`✅ Gesture "${name}" saved and model re-trained successfully!`);
-                    predictionText.textContent = "Ready";
+                if (uploadResponse.ok) {
+                    const data = await uploadResponse.json();
+                    alert(`✅ Gesture "${name}" saved! ${data.message || 'Training started in background.'}`);
+                    predictionText.textContent = "Training in background...";
+                    
+                    // Start polling for status
+                    checkTrainingStatus();
                 } else {
-                    throw new Error("Training failed");
+                    throw new Error("Upload failed");
                 }
             } catch (err) {
                 console.error("Sync Error:", err);
@@ -409,6 +404,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 predictionText.textContent = "Sync Error";
             }
         };
+    }
+
+    async function checkTrainingStatus() {
+        try {
+            const response = await fetch("/training-status");
+            const data = await response.json();
+            if (data.is_training) {
+                predictionText.textContent = "⚙️ Training Model...";
+                setTimeout(checkTrainingStatus, 5000); // Check every 5s
+            } else {
+                predictionText.textContent = "✅ Model Ready";
+                setTimeout(() => {
+                    if (predictionText.textContent === "✅ Model Ready") {
+                        predictionText.textContent = "Ready";
+                    }
+                }, 3000);
+            }
+        } catch (e) {
+            console.error("Status check failed:", e);
+        }
     }
 
     function findCustomMatch(currentFeatures) {
