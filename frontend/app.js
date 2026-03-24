@@ -411,15 +411,29 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch("/training-status");
             const data = await response.json();
             if (data.is_training) {
-                predictionText.textContent = "⚙️ Training Model...";
+                if (predictionText) predictionText.textContent = "⚙️ Training Model...";
                 setTimeout(checkTrainingStatus, 5000); // Check every 5s
             } else {
-                predictionText.textContent = "✅ Model Ready";
-                setTimeout(() => {
-                    if (predictionText.textContent === "✅ Model Ready") {
-                        predictionText.textContent = "Ready";
+                if (predictionText) {
+                    const oldText = predictionText.textContent;
+                    if (oldText === "⚙️ Training Model..." || oldText === "Training in background...") {
+                        predictionText.textContent = "✅ Model Ready";
+                        
+                        // Show Browser Notification
+                        if ("Notification" in window && Notification.permission === "granted") {
+                            new Notification("ISL Sign Language Recognition", {
+                                body: "Model re-training complete! You can now use your new gestures.",
+                                icon: "icon.svg"
+                            });
+                        }
+
+                        setTimeout(() => {
+                            if (predictionText.textContent === "✅ Model Ready") {
+                                predictionText.textContent = "Ready";
+                            }
+                        }, 5000);
                     }
-                }, 3000);
+                }
             }
         } catch (e) {
             console.error("Status check failed:", e);
@@ -631,6 +645,12 @@ document.addEventListener('DOMContentLoaded', () => {
         recordBtn.addEventListener('click', startRecordingWithCountdown);
     }
 
-    startBtn.addEventListener('click', startApp);
+    startBtn.addEventListener('click', () => {
+        startApp();
+        // Request notification permission early
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+    });
     console.log("✅ App logic loaded. Awaiting user interaction...");
 });
