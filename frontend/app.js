@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 predictionText.textContent = "Uploading gesture to server...";
-                const uploadResponse = await fetch("http://127.0.0.1:8000/upload-gesture", {
+                const uploadResponse = await fetch("/upload-gesture", {
                     method: "POST",
                     headers: { 
                         "Content-Type": "application/json",
@@ -390,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!uploadResponse.ok) throw new Error("Upload failed");
 
                 predictionText.textContent = "Server training in progress... Please wait.";
-                const trainResponse = await fetch("http://127.0.0.1:8000/train", {
+                const trainResponse = await fetch("/train", {
                     method: "POST",
                     headers: { 
                         "Authorization": `Bearer ${token}`
@@ -502,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch("http://127.0.0.1:8000/predict", {
+            const response = await fetch("/predict", {
                 method: "POST",
                 headers: { 
                     "Content-Type": "application/json",

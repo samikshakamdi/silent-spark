@@ -13,7 +13,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 # --- CONFIGURATION ---
-SECRET_KEY = "your-secret-key-keep-it-safe" # In production, use an environment variable
+SECRET_KEY = os.environ.get("SECRET_KEY", "your-secret-key-keep-it-safe") # Use environment variable in production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours
 
@@ -22,7 +22,7 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 security = HTTPBearer()
 
 # --- MODEL LOADING ---
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "gesture_svm_model.pkl")
+MODEL_PATH = os.environ.get("MODEL_PATH", os.path.join(os.path.dirname(__file__), "gesture_svm_model.pkl"))
 try:
     model = joblib.load(MODEL_PATH)
     print(f"✅ Model loaded from {MODEL_PATH}")
