@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sign-rec-v2';
+const CACHE_NAME = 'sign-rec-v7';
 const ASSETS = [
     './',
     './index.html',

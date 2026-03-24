@@ -1,15 +1,11 @@
-// Global error listener for debugging
-window.addEventListener('error', function (event) {
-    console.error('🔥 Global Error:', event.error);
-    const predText = document.getElementById('prediction-text');
-    if (predText) predText.textContent = 'Script Error: Check Console';
-});
-
-// Prevent multiple initializations
-if (window.islAppInitialized) {
-    console.warn("⚠️ ISL App already initialized.");
-} else {
-    window.islAppInitialized = true;
+// Wrapping everything in DOMContentLoaded to ensure elements are ready
+document.addEventListener('DOMContentLoaded', () => {
+    // Global error listener for debugging
+    window.addEventListener('error', function (event) {
+        console.error('🔥 Global Error:', event.error);
+        const predText = document.getElementById('prediction-text');
+        if (predText) predText.textContent = 'Script Error: Check Console';
+    });
 
     const videoElement = document.getElementsByClassName('input_video')[0];
     const canvasElement = document.getElementsByClassName('output_canvas')[0];
@@ -17,12 +13,28 @@ if (window.islAppInitialized) {
     const predictionText = document.getElementById('prediction-text');
     const startBtn = document.getElementById('start-btn');
     const recordBtn = document.getElementById('record-gesture-btn');
+    const manageBtn = document.getElementById('manage-gestures-btn');
     const muteBtn = document.getElementById('mute-btn');
     const muteIcon = document.getElementById('mute-icon');
     const recordingOverlay = document.getElementById('recording-overlay');
     const recordingTimer = document.getElementById('recording-timer');
     const recordingMsg = document.getElementById('recording-msg');
     const recordingProgress = document.getElementById('recording-progress');
+    const gestureModal = document.getElementById('gesture-modal');
+    const gestureInput = document.getElementById('gesture-name-input');
+    const confirmBtn = document.getElementById('modal-confirm-btn');
+    const cancelBtn = document.getElementById('modal-cancel-btn');
+    
+    // Manage Modal Elements
+    const manageModal = document.getElementById('manage-modal');
+    const gesturesList = document.getElementById('gestures-list');
+    const manageCloseBtn = document.getElementById('manage-close-btn');
+
+    // Confirm Modal Elements
+    const confirmModal = document.getElementById('confirm-modal');
+    const confirmMsg = document.getElementById('confirm-msg');
+    const confirmOkBtn = document.getElementById('confirm-ok-btn');
+    const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
 
     let isPredicting = false;
     let lastPredictionTime = 0;
@@ -43,12 +55,13 @@ if (window.islAppInitialized) {
     const STORE_NAME = "customGestures";
     let db;
 
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = (e) => {
         const db = e.target.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-            db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+        if (db.objectStoreNames.contains(STORE_NAME)) {
+            db.deleteObjectStore(STORE_NAME);
         }
+        db.createObjectStore(STORE_NAME, { keyPath: "name" });
     };
     request.onsuccess = (e) => {
         db = e.target.result;
@@ -58,14 +71,18 @@ if (window.islAppInitialized) {
     request.onerror = (e) => console.error("❌ IndexedDB Error:", e);
 
     async function refreshCustomGestures() {
-        if (!db) return;
-        const transaction = db.transaction(STORE_NAME, "readonly");
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.getAll();
-        request.onsuccess = () => {
-            loadedCustomGestures = request.result;
-            console.log(`📡 Cached ${loadedCustomGestures.length} custom gestures.`);
-        };
+        if (!db) return [];
+        return new Promise((resolve) => {
+            const tx = db.transaction(STORE_NAME, "readonly");
+            const store = tx.objectStore(STORE_NAME);
+            const request = store.getAll();
+            request.onsuccess = () => {
+                loadedCustomGestures = request.result;
+                console.log(`🔄 Loaded ${loadedCustomGestures.length} custom gestures.`);
+                resolve(loadedCustomGestures);
+            };
+            request.onerror = () => resolve([]);
+        });
     }
 
     console.log("🚀 Starting ISL App Logic...");
@@ -158,25 +175,164 @@ if (window.islAppInitialized) {
     }
 
     function startRecordingWithCountdown() {
-        const gestureName = prompt("Enter a name for this gesture:", "CustomGesture");
-        if (!gestureName) return;
+        if (!gestureModal || !gestureInput) {
+            console.error("❌ Modal elements missing");
+            return;
+        }
+        // Show modal instead of prompt
+        gestureModal.style.display = 'flex';
+        gestureInput.value = "CustomGesture";
+        gestureInput.focus();
+        if (gestureInput.select) gestureInput.select();
+    }
 
-        recordingOverlay.style.display = 'flex';
-        recordingMsg.textContent = "Prepare to record...";
-        recordingTimer.textContent = "3";
-        recordingProgress.style.width = "0%";
-        recordingOverlay.classList.remove('recording-active');
-
-        let countdown = 3;
-        const interval = setInterval(() => {
-            countdown--;
-            if (countdown > 0) {
-                recordingTimer.textContent = countdown;
-            } else {
-                clearInterval(interval);
-                startCapture(gestureName);
+    // Modal Events
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            const gestureName = gestureInput.value.trim();
+            if (!gestureName) return alert("Please enter a name.");
+            gestureModal.style.display = 'none';
+            
+            if (recordingOverlay) {
+                recordingOverlay.style.display = 'flex';
+                recordingMsg.textContent = "Prepare to record...";
+                recordingTimer.textContent = "3";
+                recordingProgress.style.width = "0%";
+                recordingOverlay.classList.remove('recording-active');
             }
-        }, 1000);
+
+            let countdown = 3;
+            const interval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) {
+                    if (recordingTimer) recordingTimer.textContent = countdown;
+                } else {
+                    clearInterval(interval);
+                    startCapture(gestureName);
+                }
+            }, 1000);
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            gestureModal.style.display = 'none';
+        });
+    }
+
+    // --- NEW: MANAGE GESTURES LOGIC ---
+
+    if (manageBtn) {
+        manageBtn.addEventListener('click', openManageModal);
+    }
+    
+    if (manageCloseBtn) {
+        manageCloseBtn.addEventListener('click', () => {
+            if (manageModal) manageModal.style.display = 'none';
+        });
+    }
+
+    async function openManageModal() {
+        manageModal.style.display = 'flex';
+        renderGesturesList();
+    }
+
+    async function renderGesturesList() {
+        gesturesList.innerHTML = '<p style="text-align: center; opacity: 0.5;">Loading gestures...</p>';
+        const customGestures = await refreshCustomGestures(); // Now refreshCustomGestures returns the list
+
+        if (customGestures.length === 0) {
+            gesturesList.innerHTML = '<p style="text-align: center; opacity: 0.5;">No custom gestures found.</p>';
+            return;
+        }
+
+        gesturesList.innerHTML = '';
+        customGestures.forEach(g => {
+            const item = document.createElement('div');
+            item.className = 'gesture-item';
+            item.innerHTML = `
+                <div class="gesture-info">
+                    <span class="gesture-name">${g.name}</span>
+                    <span class="gesture-meta">${g.data.length} frames recorded</span>
+                </div>
+                <button class="delete-btn" data-gesture-name="${g.name}">Delete</button>
+            `;
+            gesturesList.appendChild(item);
+        });
+
+        // Add event listeners for delete buttons
+        document.querySelectorAll('.delete-btn').forEach(button => {
+            button.addEventListener('click', (event) => {
+                const gestureName = event.target.dataset.gestureName;
+                handleDeleteGesture(gestureName);
+            });
+        });
+    }
+
+    async function handleDeleteGesture(name) {
+        confirmMsg.textContent = `Are you sure you want to delete "${name}"? This will re-train the model.`;
+        confirmModal.style.display = 'flex';
+
+        // Set up one-time event listeners for the modal
+        const onConfirm = async () => {
+            confirmModal.style.display = 'none';
+            confirmOkBtn.removeEventListener('click', onConfirm);
+            confirmCancelBtn.removeEventListener('click', onCancel);
+            await performDeletion(name);
+        };
+
+        const onCancel = () => {
+            confirmModal.style.display = 'none';
+            confirmOkBtn.removeEventListener('click', onConfirm);
+            confirmCancelBtn.removeEventListener('click', onCancel);
+        };
+
+        confirmOkBtn.addEventListener('click', onConfirm);
+        confirmCancelBtn.addEventListener('click', onCancel);
+    }
+
+    async function performDeletion(name) {
+        const deleteBtns = document.querySelectorAll('.delete-btn');
+        deleteBtns.forEach(b => b.disabled = true);
+        
+        try {
+            const token = localStorage.getItem('isl_token');
+            if (!token) {
+                alert("You are not logged in. Please log in to delete gestures.");
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const response = await fetch(`/delete-gesture/${name}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            console.log(`🗑️ Deletion response for "${name}":`, response.status);
+
+            if (response.ok) {
+                // Also remove from local IndexedDB
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, "readwrite");
+                    const store = tx.objectStore(STORE_NAME);
+                    const request = store.delete(name);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+                
+                alert(`Gesture "${name}" deleted and model re-trained!`);
+                renderGesturesList(); // Refresh list
+                refreshCustomGestures(); // Refresh cache
+            } else {
+                const err = await response.json();
+                alert("Deletion failed: " + (err.detail || "Unknown error"));
+            }
+        } catch (error) {
+            console.error("Deletion error:", error);
+            alert("An error occurred during deletion. Please check console.");
+        } finally {
+            deleteBtns.forEach(b => b.disabled = false);
+        }
     }
 
     function startCapture(name) {
@@ -191,7 +347,8 @@ if (window.islAppInitialized) {
     function stopRecording() {
         isRecording = false;
         recordingOverlay.style.display = 'none';
-        saveGesture(recordingMsg.textContent.match(/"([^"]+)"/)[1]);
+        const gestureName = recordingMsg.textContent.match(/"([^"]+)"/)[1];
+        saveGesture(gestureName);
     }
 
     async function saveGesture(name) {
@@ -204,11 +361,53 @@ if (window.islAppInitialized) {
             frameCount: recordedFrames.length,
             data: recordedFrames
         };
-        store.add(gesture);
-        transaction.oncomplete = () => {
-            alert(`✅ Gesture "${name}" saved! (${recordedFrames.length} frames captured)\n\nStored landmarks can be accessed via IndexedDB for training.`);
+        store.put(gesture); // Use put instead of add to allow updating if name exists
+        transaction.oncomplete = async () => {
             console.log("💾 Gesture saved to IndexedDB.");
-            refreshCustomGestures(); // Refresh cache to include new gesture
+            refreshCustomGestures(); // Refresh cache
+            
+            // --- NEW: Sync with Backend and Train ---
+            const token = localStorage.getItem('isl_token');
+            if (!token) {
+                alert("Gesture saved locally, but you are not logged in. Please log in to sync with server.");
+                return;
+            }
+
+            try {
+                predictionText.textContent = "Uploading gesture to server...";
+                const uploadResponse = await fetch("http://127.0.0.1:8000/upload-gesture", {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ 
+                        gesture_name: name,
+                        landmarks: recordedFrames 
+                    })
+                });
+
+                if (!uploadResponse.ok) throw new Error("Upload failed");
+
+                predictionText.textContent = "Server training in progress... Please wait.";
+                const trainResponse = await fetch("http://127.0.0.1:8000/train", {
+                    method: "POST",
+                    headers: { 
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+
+                if (trainResponse.ok) {
+                    alert(`✅ Gesture "${name}" saved and model re-trained successfully!`);
+                    predictionText.textContent = "Ready";
+                } else {
+                    throw new Error("Training failed");
+                }
+            } catch (err) {
+                console.error("Sync Error:", err);
+                alert(`⚠️ Gesture saved locally, but server sync/training failed: ${err.message}`);
+                predictionText.textContent = "Sync Error";
+            }
         };
     }
 
@@ -233,6 +432,22 @@ if (window.islAppInitialized) {
             }
         }
         return bestMatch;
+    }
+
+    // --- AUTHENTICATION & UI ---
+    const logoutBtn = document.getElementById('logout-btn');
+    const userNameSpan = document.getElementById('user-name');
+
+    if (userNameSpan) {
+        userNameSpan.textContent = localStorage.getItem('isl_user') || 'User';
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('isl_token');
+            localStorage.removeItem('isl_user');
+            window.location.href = 'login.html';
+        });
     }
 
     async function sendForPrediction(multiHandLandmarks) {
@@ -280,12 +495,28 @@ if (window.islAppInitialized) {
         }
 
         // 2. Fallback to Backend API
+        const token = localStorage.getItem('isl_token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+
         try {
             const response = await fetch("http://127.0.0.1:8000/predict", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
                 body: JSON.stringify({ landmarks: allFeatures })
             });
+
+            if (response.status === 401) {
+                localStorage.removeItem('isl_token');
+                window.location.href = 'login.html';
+                return;
+            }
+
             const data = await response.json();
             if (data.gesture) {
                 const currentGesture = data.gesture.toString().toUpperCase();
@@ -358,8 +589,10 @@ if (window.islAppInitialized) {
                 videoElement.play();
                 streamActive = true;
                 startBtn.style.display = 'none';
+                // Show custom controls
                 muteBtn.style.display = 'block';
                 recordBtn.style.display = 'block';
+                manageBtn.style.display = 'block';
                 console.log("▶️ Video playing, starting recognition loop.");
                 processFrame();
             };
@@ -379,8 +612,10 @@ if (window.islAppInitialized) {
         muteBtn.style.background = isMuted ? "rgba(255, 0, 0, 0.2)" : "rgba(255, 255, 255, 0.15)";
     });
 
-    recordBtn.addEventListener('click', startRecordingWithCountdown);
+    if (recordBtn) {
+        recordBtn.addEventListener('click', startRecordingWithCountdown);
+    }
 
     startBtn.addEventListener('click', startApp);
     console.log("✅ App logic loaded. Awaiting user interaction...");
-}
+});

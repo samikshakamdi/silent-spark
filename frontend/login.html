@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - ISL Sign Recognition</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: radial-gradient(circle at top right, #1a1a2e, #16213e, #0f3460);
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        h2 {
+            margin-bottom: 25px;
+            font-size: 30px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff, #b3b3b3);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.6);
+            padding-left: 5px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            border-color: #4CAF50;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.2);
+        }
+
+        .primary-btn {
+            width: 100%;
+            padding: 14px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .primary-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .primary-btn:active {
+            transform: translateY(0);
+        }
+
+        .toggle-link {
+            display: block;
+            margin-top: 25px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .toggle-link:hover {
+            color: #4CAF50;
+        }
+
+        .forgot-link {
+            float: right;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 5px;
+            transition: color 0.3s;
+        }
+
+        .forgot-link:hover {
+            color: #4CAF50;
+        }
+
+        #error-msg {
+            color: #ff4d4d;
+            font-size: 13px;
+            margin-top: 15px;
+            min-height: 18px;
+        }
+
+        .loader {
+            display: none;
+            width: 22px;
+            height: 22px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s infinite linear;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* View Switching Logic */
+        .hidden { display: none !important; }
+
+        .auth-view {
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .mock-notification {
+            background: rgba(76, 175, 80, 0.1);
+            border: 1px dashed #4CAF50;
+            padding: 15px;
+            border-radius: 12px;
+            margin-top: 20px;
+            color: #4CAF50;
+            font-size: 13px;
+        }
+
+        .mock-link {
+            color: #fff;
+            text-decoration: underline;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div id="login-view" class="auth-view">
+            <h2>Sign In</h2>
+            <div class="form-group">
+                <label for="login-user">Username</label>
+                <input type="text" id="login-user" placeholder="Enter username" value="admin">
+            </div>
+            <div class="form-group" style="margin-bottom: 5px;">
+                <label for="login-pass">Password</label>
+                <input type="password" id="login-pass" placeholder="Enter password" value="password123">
+                <span class="toggle-link forgot-link" onclick="switchView('reset')">Forgot Password?</span>
+            </div>
+            <button onclick="handleLogin()" class="primary-btn">
+                <span id="login-text">Login</span>
+                <div id="login-loader" class="loader"></div>
+            </button>
+            <span class="toggle-link" onclick="switchView('register')">Don't have an account? <b>Sign Up</b></span>
+        </div>
+
+        <div id="register-view" class="auth-view hidden">
+            <h2>Create Account</h2>
+            <div class="form-group">
+                <label for="reg-user">Username</label>
+                <input type="text" id="reg-user" placeholder="Choose a username">
+            </div>
+            <div class="form-group">
+                <label for="reg-email">Email Address</label>
+                <input type="email" id="reg-email" placeholder="email@example.com">
+            </div>
+            <div class="form-group">
+                <label for="reg-phone">Phone Number</label>
+                <input type="tel" id="reg-phone" placeholder="1234567890">
+            </div>
+            <div class="form-group">
+                <label for="reg-pass">Password</label>
+                <input type="password" id="reg-pass" placeholder="Create a password">
+            </div>
+            <button onclick="handleRegister()" class="primary-btn">
+                <span id="reg-text">Register Now</span>
+                <div id="reg-loader" class="loader"></div>
+            </button>
+            <span class="toggle-link" onclick="switchView('login')">Already have an account? <b>Sign In</b></span>
+        </div>
+
+        <div id="reset-view" class="auth-view hidden">
+            <h2>Reset Password</h2>
+            <p style="font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 20px;">Enter your username and email/phone to request a reset link.</p>
+            <div class="form-group">
+                <label for="reset-user">Username</label>
+                <input type="text" id="reset-user" placeholder="Your username">
+            </div>
+            <div class="form-group">
+                <label for="reset-info">Email or Phone</label>
+                <input type="text" id="reset-info" placeholder="Registered email or phone">
+            </div>
+            <button onclick="handleRequestReset()" class="primary-btn">
+                <span id="reset-req-text">Request Link</span>
+                <div id="reset-req-loader" class="loader"></div>
+            </button>
+            
+            <div id="mock-email-box" class="mock-notification hidden">
+                📩 A recovery link has been generated! <br><br>
+                <span class="mock-link" onclick="switchToNewPassword()">[DEMO: Click to Open Link]</span>
+            </div>
+
+            <span class="toggle-link" onclick="switchView('login')">Return to <b>Sign In</b></span>
+        </div>
+
+        <div id="new-password-view" class="auth-view hidden">
+            <h2>New Password</h2>
+            <p style="font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 20px;">You are resetting password for <b id="resetging-user">user</b></p>
+            <div class="form-group">
+                <label for="new-pass">Enter New Password</label>
+                <input type="password" id="new-pass" placeholder="At least 8 characters">
+            </div>
+            <button onclick="handleConfirmReset()" class="primary-btn">
+                <span id="confirm-reset-text">Update Password</span>
+                <div id="confirm-reset-loader" class="loader"></div>
+            </button>
+        </div>
+
+        <div id="error-msg"></div>
+    </div>
+
+    <script>
+        const errorMsg = document.getElementById('error-msg');
+        let currentView = 'login';
+        let pendingResetUsername = "";
+
+        function switchView(view) {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('register-view').classList.add('hidden');
+            document.getElementById('reset-view').classList.add('hidden');
+            document.getElementById('new-password-view').classList.add('hidden');
+            
+            document.getElementById(`${view}-view`).classList.remove('hidden');
+            errorMsg.textContent = "";
+            currentView = view;
+
+            // Reset mock box if returning to request view
+            if (view === 'reset') document.getElementById('mock-email-box').classList.add('hidden');
+        }
+
+        function switchToNewPassword() {
+            document.getElementById('resetging-user').textContent = pendingResetUsername;
+            switchView('new-password');
+        }
+
+        async function apiCall(endpoint, body) {
+            // Find loader in current view
+            let prefix = "";
+            if (currentView === 'login') prefix = "login";
+            else if (currentView === 'register') prefix = "reg";
+            else if (currentView === 'reset') prefix = "reset-req";
+            else if (currentView === 'new-password') prefix = "confirm-reset";
+
+            const btnText = document.getElementById(`${prefix}-text`);
+            const loader = document.getElementById(`${prefix}-loader`);
+            
+            if (btnText) btnText.style.display = 'none';
+            if (loader) loader.style.display = 'block';
+            errorMsg.textContent = "";
+
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    return data;
+                } else {
+                    errorMsg.style.color = '#ff4d4d';
+                    errorMsg.textContent = data.detail || "Action failed.";
+                    return null;
+                }
+            } catch (err) {
+                console.error(err);
+                errorMsg.textContent = "Server connection error.";
+                return null;
+            } finally {
+                if (btnText) btnText.style.display = 'block';
+                if (loader) loader.style.display = 'none';
+            }
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('login-user').value;
+            const password = document.getElementById('login-pass').value;
+
+            if (!username || !password) return errorMsg.textContent = "Fields cannot be empty.";
+
+            const data = await apiCall('login', { username, password });
+            if (data) {
+                localStorage.setItem('isl_token', data.access_token);
+                localStorage.setItem('isl_user', username);
+                window.location.href = 'index.html';
+            }
+        }
+
+        async function handleRegister() {
+            const username = document.getElementById('reg-user').value;
+            const email = document.getElementById('reg-email').value;
+            const phone = document.getElementById('reg-phone').value;
+            const password = document.getElementById('reg-pass').value;
+
+            if (!username || !password || !email) return errorMsg.textContent = "All fields are required.";
+
+            const data = await apiCall('register', { username, email, phone, password });
+            if (data) {
+                errorMsg.style.color = '#4CAF50';
+                errorMsg.textContent = "Success! Please sign in.";
+                setTimeout(() => switchView('login'), 1500);
+            }
+        }
+
+        async function handleRequestReset() {
+            const username = document.getElementById('reset-user').value;
+            const info = document.getElementById('reset-info').value;
+
+            if (!username || !info) return errorMsg.textContent = "All fields required.";
+
+            const data = await apiCall('request-reset', { username, recovery_info: info });
+            if (data) {
+                pendingResetUsername = username;
+                document.getElementById('mock-email-box').classList.remove('hidden');
+                errorMsg.style.color = '#4CAF50';
+                errorMsg.textContent = "Recovery info verified!";
+            }
+        }
+
+        async function handleConfirmReset() {
+            const newPass = document.getElementById('new-pass').value;
+            if (!newPass || newPass.length < 8) return errorMsg.textContent = "Password must be 8+ chars.";
+
+            const data = await apiCall('confirm-reset', { 
+                username: pendingResetUsername, 
+                recovery_info: "used-token", // Dummy for backend consistency
+                new_password: newPass 
+            });
+            if (data) {
+                errorMsg.style.color = '#4CAF50';
+                errorMsg.textContent = "Success! Login with new password.";
+                setTimeout(() => switchView('login'), 1500);
+            }
+        }
+
+        // Allow Enter key
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (currentView === 'login') handleLogin();
+                else if (currentView === 'register') handleRegister();
+                else if (currentView === 'reset') handleRequestReset();
+                else if (currentView === 'new-password') handleConfirmReset();
+            }
+        });
+
+        // Redirect if already logged in
+        if (localStorage.getItem('isl_token')) {
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
