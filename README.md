@@ -114,4 +114,4 @@ This project is open source. Feel free to use it and build upon it.
 
 ---
 
-> *"Giving voice to silence — one gesture at a time."*
+> *"Giving voice to silence, one gesture at a time."*
